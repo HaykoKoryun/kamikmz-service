@@ -34,6 +34,7 @@ function convert()
 
 function commander(command, socket)
 {
+  console.log(command);
   switch(command)
   {
     case "convert":
@@ -55,10 +56,15 @@ var server = net.createServer(function(socket)
   var buffer = "";
   socket.on('data', function(data)
   {
-    if(data == "\r\n")
+    console.log(data.indexOf("\n"));
+    if(data == "\r\n" || data == "\n")
     {
       commander(buffer, socket);
       buffer = "";
+    }
+    else if(data.indexOf("\n") != -1)
+    {
+      commander(data.replace("\n","").trim(), socket);
     }
     else
     {
