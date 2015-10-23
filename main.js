@@ -11,6 +11,10 @@ config["export-path"] = config["export-path"].replace(/\\/ig, "\\\\");
 var template = fs.readFileSync("template.rb", "utf8");
 var logo = fs.readFileSync("logo.txt", "utf8");
 
+var MODE_COMMAND = 0;
+var MODE_RECEIVE = 1;
+var MODE_RECEIVING = 2;
+
 function convert()
 {
   fs.writeFileSync
@@ -32,47 +36,51 @@ function convert()
   exec("\"" + config["sketchup-bin"] + "\" -RubyStartup " + __dirname + "\\export.rb");
 }
 
-function commander(command, socket)
-{
-  console.log(command);
-  switch(command)
-  {
-    case "convert":
-    {
-      socket.write("converting file\r\n");
-      convert();
-      socket.write("done\r\n");
-    } break;
-  }
-}
-
 var net = require('net');
 
-var server = net.createServer(function(socket)
-{
-  socket.setEncoding("utf8");
-	socket.write(logo + "\r\n");
+var server = net.createServer(function(conn){});
 
-  var buffer = "";
-  socket.on('data', function(data)
+server.listen(config.port, config.host, function()
+{
+  server.on("connection", function(socket)
   {
-    console.log(data.indexOf("\n"));
-    if(data == "\r\n" || data == "\n")
+    console.log("client connected");
+
+    socket.setEncoding("utf8");
+  	socket.write(logo + "\r\n");
+
+    var buffer = "";
+    var mode = MODE_COMMAND;
+
+    var fileStream;
+
+    socket.on('data', function(data)
     {
-      commander(buffer, socket);
-      buffer = "";
-    }
-    else if(data.indexOf("\n") != -1)
-    {
-      commander(data.replace("\n","").trim(), socket);
-    }
-    else
-    {
-      buffer += data;
-    }
+      if(mode == MODE_RECEIVING && data.trim() == "finished")
+      {
+        socket.unpipe(fileStream);
+        fileStream.close();
+        mode = MODE_COMMAND;
+        console.log("finished");
+      }
+      if(mode == MODE_COMMAND && data.trim() == "convert")
+      {
+        console.log("convert command received, waiting for file");
+
+        socket.write("ok\n");
+        mode = MODE_RECEIVE;
+
+        fileStream = fs.createWriteStream(config["import-path"] + "import.skp", {defaultEncoding:"binary"});
+        socket.setEncoding("binary");
+        socket.pipe(fileStream, {end:false});
+      }
+      else if(mode == MODE_RECEIVE)
+      {
+        console.log("receiving file");
+        mode = MODE_RECEIVING;
+      }
+    });
   });
 });
-
-server.listen(config.port, config.address);
 
 console.log(logo);
