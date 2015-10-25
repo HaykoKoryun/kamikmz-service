@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/HaykoKoryun/kamikmz-service/issues"
   },
-  "homepage": "https://github.com/HaykoKoryun/kamikmz-service#readme"
+  "homepage": "https://github.com/HaykoKoryun/kamikmz-service#readme",
+  "dependencies": {
+    "bluebird": "^2.10.2"
+  }
 }
