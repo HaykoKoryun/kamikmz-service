@@ -1,3 +1,4 @@
 files
 export.rb
 config.json
+test/exported.kmz

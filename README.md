@@ -33,4 +33,4 @@ for example
 
 run `main.js` with node and you are done!
 
-test teapot model [from](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e) Trimble Sketchup 3D Warehouse
+test teapot model [from Trimble Sketchup 3D Warehouse](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e)
