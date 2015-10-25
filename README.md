@@ -11,10 +11,15 @@ create a `config.json` file next to `main.js` with the following:
     "f:\\path\\to\\export\\files\\",
   "host" :
     "127.0.0.1",
-  "port" :
-    "1337"
+  "command" :
+    "1337",
+  "escort" :
+    "1338"
 }
 ```
+`command` port is for sending commands  
+`escort` port is for transferring files
+
 for example
 ```json
 {
@@ -26,8 +31,10 @@ for example
     "f:\\projects\\kamikmz\\export\\",
   "host" :
     "127.0.0.1",
-  "port" :
-    "1337"
+  "command" :
+    "1337",
+  "escort" :
+    "1338"
 }
 ```
 
