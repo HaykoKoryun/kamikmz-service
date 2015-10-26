@@ -1,13 +1,86 @@
 var net = require('net');
 var fs = require('fs');
+var readline = require('readline');
+var Promise = require("bluebird");
 
 var config = JSON.parse
 (
   fs.readFileSync("config.json")
 );
 
-var socket = new net.Socket();
+var command = new net.Socket();
+var escort = new net.Socket();
 
+command.connect(config.command, "127.0.0.1", function()
+{
+  console.log("command connected");
+
+  var fileStream;
+
+  var rl = readline.createInterface
+  ({
+    input: command,
+    output: command
+  });
+
+  var question = Promise.promisify(function(question, callback)
+  {
+    rl.question(question, callback.bind(null, null));
+  });
+
+  command.setEncoding("utf8");
+
+  loop();
+
+  function loop()
+  {
+    rl.once("line", function(data)
+    {
+      if(data == "ready")
+      {
+        console.log("command ready");
+
+        question("convert\n").then(function(answer)
+        {
+          if(answer == "size")
+          {
+            console.log("ready to convert, sending file size");
+            var stats = fs.statSync("./test/original.skp");
+            var size = stats["size"];
+            return question(size + "\n");
+          }
+        }).then(function(answer)
+        {
+          if(answer == "ready")
+          {
+            console.log("ready to send");
+            fileStream = fs.createReadStream("./test/original.skp");
+
+            fileStream.on('open',function()
+            {
+              console.log("sending file");
+              fileStream.pipe(escort, {end:false});
+              fileStream.on("end", function()
+              {
+                console.log("complete");
+                fileStream.unpipe(escort);
+                fileStream.close();
+                return question("complete\n");
+              });
+            });
+          }
+        });
+      }
+    });
+  }
+});
+
+escort.connect(config.escort, "127.0.0.1", function()
+{
+  console.log("escort connected");
+});
+
+/*
 var MODE_SENDING = 0;
 var MODE_RECEIVING = 2;
 
@@ -78,3 +151,4 @@ socket.on('error', function(err)
 {
   console.log(err);
 });
+*/

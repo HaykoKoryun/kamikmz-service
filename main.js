@@ -1,7 +1,7 @@
 var fs = require("fs");
 var exec = require('child_process').execSync;
-var Promise = require("bluebird");
 var readline = require('readline');
+var Promise = require("bluebird");
 
 var config = JSON.parse
 (
@@ -59,21 +59,84 @@ var escort = (function()
   var _instance = {};
 
   var connected = false;
+  var completed = false;
+  var socket;
+  var fileStream;
+  var size = -1;
 
-  server.on("connection", function(socket)
+  server.on("connection", function(_socket)
   {
-    conncted = true;
     console.log("escort connected");
+    connected = true;
+
+    socket = _socket;
+
+    socket.on("error", function()
+    {
+      socket.end();
+      reset();
+    });
+
+    socket.on("close", function()
+    {
+      reset();
+    });
   });
 
+  function reset()
+  {
+    try
+    {
+      fs.unlinkSync(config["import-path"] + "import.skp");
+      fs.unlinkSync(config["export-path"] + "export.kmz");
+    }
+    catch(e)
+    {
+
+    }
+  }
 
   _instance.connected = function()
   {
     return connected;
   };
 
+  _instance.startReceive = function(size)
+  {
+    console.log("setting up file transfer, size: " + size);
+
+    fileStream = fs.createWriteStream(config["import-path"] + "import.skp", {defaultEncoding:"binary"});
+    socket.setEncoding("binary");
+    socket.pipe(fileStream, {end:false});
+    size = size;
+
+    var received = 0;
+
+    return new Promise(function(resolve, reject)
+    {
+      socket.on("data", function(data)
+      {
+        received += data.length;
+
+        if(received == size)
+        {
+          socket.unpipe(fileStream);
+          fileStream.close();
+          completed = true;
+          console.log("complete");
+          resolve("complete");
+        }
+      });
+    }).then(function(result){return result;});
+  }
+
+  _instance.completed = function()
+  {
+    return completed;
+  }
+
   return _instance;
-});
+})();
 
 var command = (function()
 {
@@ -104,11 +167,12 @@ var command = (function()
 
     function loop()
     {
-      question("ready\r\n").then(function(answer)
+      question("ready\n").then(function(answer)
       {
         if(answer == "convert")
         {
-          return question("size\r\n");
+          console.log("ready to convert, requesting file size");
+          return question("size\n");
         }
         else
         {
@@ -116,22 +180,23 @@ var command = (function()
         }
       }).then(function(answer)
       {
-        if(!isNAN(answer))
+        if(!isNaN(answer))
         {
-          // 1. tell escort to get ready to receive file
-          // 2. when escort is ready, return:
-          return question("ready\r\n");
+          return Promise.join
+          (
+            question("ready\n"),
+            escort.startReceive(answer)
+          );
         }
         else
         {
           return Promise.reject(new Error("incorrect size, expecting a number"));
         }
-      }).then(function(answer)
+      }).then(function(answers)
       {
-        if(answer == "complete")
+        if(answers[0] == "complete" && answers[1] == "complete")
         {
-          // 1. tell escort that file transfer is complete from client side
-          // 2. when escort has received last chunk and is ready, begin conversion
+          console.log("file received");
           // 3. when conversion finished, tell client to get ready to receive
           return question("exported\r\n");
         }
@@ -167,19 +232,22 @@ var command = (function()
       });
     }
 
-  /*), function(answer)
+    socket.on("error", function()
     {
-      if(answer == "convert")
-      {
-        rl.question("size", function(answer)
-        {
-          escort.setMode(MODE_RECEIVE);
-
-          rl.question("ok", function(answer))
-        });
-      }
+      socket.end();
+      reset();
     });
-    */
+
+    socket.on("close", function()
+    {
+      reset();
+    });
+  });
+
+  function reset()
+  {
+
+  }
 
     /*var mode = MODE_WAITING;
 
@@ -249,33 +317,8 @@ var command = (function()
         } break;
       }
     });
-
-    socket.on("error", function()
-    {
-      socket.end();
-      cleanTemp();
-    });
-
-    socket.on("close", function()
-    {
-      cleanTemp();
-    });
     */
-  });
 })();
-
-function cleanTemp()
-{
-  try
-  {
-    fs.unlinkSync(config["import-path"] + "import.skp");
-    fs.unlinkSync(config["export-path"] + "export.kmz");
-  }
-  catch(e)
-  {
-
-  }
-}
 
 console.log(logo);
 
