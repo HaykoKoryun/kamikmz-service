@@ -1,6 +1,20 @@
-# kamikmz-service
+```
+        __                    __ __                   
+       |  | _______    _____ |__|  | __ _____ ________
+       |  |/ /\__  \  /     \|  |  |/ //     \\___   /
+       |    <  / __ \|  Y Y  \  |    <|  Y Y  \/    /
+       |__|_ \(____  /__|_|  /__|__|_ \__|_|  /_____ \
+```
+# kamikmz service
+A NodeJS application running as a [Trimble SketchUp](http://www.sketchup.com/) to [Google KMZ](https://developers.google.com/kml/documentation/kmzarchives?hl=en) conversion service.
 
-create a `config.json` file next to `main.js` with the following:
+A client uses the `kamikmz-service` by creating two `TCP` connections:   
+-o one for sending and receiving `commands`  
+-o the second for sending and receiving `files` (kinda like FTP).
+
+The only prerequisite is that you need to have `Trimble SketchUp` installed on the machine that will host the service, as the application invokes it with a `Ruby` script to make the conversion.
+
+To run the service, just create a `config.json` file next to `main.js` with the following:
 ```json
 {
   "sketchup-bin" :
@@ -20,7 +34,7 @@ create a `config.json` file next to `main.js` with the following:
 `command` port is for sending commands  
 `escort` port is for transferring files
 
-for example
+For example
 ```json
 {
   "sketchup-bin" :
@@ -38,6 +52,8 @@ for example
 }
 ```
 
-run `main.js` with node and you are done!
+Run `node main.js` and the service should kick in!
+
+Just to make sure everything is peachy, run `node test.js` on the same machine  which will do a test transfer and conversion. To test the setup from a remote machine do the same thing but make sure that the hostname in the `config.json` file is reachable from the remote machine.
 
 test teapot model [from Trimble Sketchup 3D Warehouse](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e)
