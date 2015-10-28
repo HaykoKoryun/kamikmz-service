@@ -54,6 +54,11 @@ For example
 
 Run `node main.js` and the service should kick in!
 
-Just to make sure everything is peachy, run `node test.js` on the same machine  which will do a test transfer and conversion. To test the setup from a remote machine do the same thing but make sure that the hostname in the `config.json` file is reachable from the remote machine.
+###### (don't forget to run `npm install` first as currently the only dependency is the [bluebird](https://github.com/petkaantonov/bluebird) package)
+
+## Testing
+Just to make sure everything is peachy, run `node test.js` on the same machine  which will do a test transfer and conversion with `console.log`s.
+
+To test the setup from a remote machine, just copy `package.json`, the `test` folder and `test.js` to the remote machine, `npm install` and then run `node test.js hostname command escort` replacing `hostname`, `command` and `escort` with their respective values.
 
 Teapot model used for testing from [Trimble Sketchup 3D Warehouse](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e)

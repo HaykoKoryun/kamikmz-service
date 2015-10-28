@@ -4,16 +4,40 @@ var readline = require('readline');
 var Promise = require("bluebird");
 
 var host = "127.0.0.1";
+var commandport;
+var escortport;
 
 if(process.argv.length > 2)
 {
-  host = process.argv[2];
-}
+  if(process.argv.length != 5)
+  {
+    console.log("not enough parameters, expecting 3!");
+    console.log("try node test.js hostname command escort");
+    process.exit();
+  }
 
-var config = JSON.parse
-(
-  fs.readFileSync("config.json")
-);
+  host = process.argv[2];
+  commandport = process.argv[3];
+  escortport = process.argv[4];
+}
+else
+{
+  try
+  {
+    var config = JSON.parse
+    (
+      fs.readFileSync("config.json")
+    );
+
+    commandport = config.command;
+    escortport = config.escort;
+  }
+  catch(e)
+  {
+    console.log("config file missing!");
+    process.exit();
+  }
+}
 
 var command = new net.Socket();
 var escort = new net.Socket();
@@ -28,7 +52,7 @@ escort.on('error', function(err)
   console.log(err);
 });
 
-command.connect(config.command, host, function()
+command.connect(commandport, host, function()
 {
   console.log("command connected");
 
@@ -162,7 +186,7 @@ command.connect(config.command, host, function()
   }
 });
 
-escort.connect(config.escort, host, function()
+escort.connect(escortport, host, function()
 {
   console.log("escort connected");
 });
