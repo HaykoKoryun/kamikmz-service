@@ -3,6 +3,13 @@ var fs = require('fs');
 var readline = require('readline');
 var Promise = require("bluebird");
 
+var host = "127.0.0.1";
+
+if(process.argv.length > 2)
+{
+  host = process.argv[2];
+}
+
 var config = JSON.parse
 (
   fs.readFileSync("config.json")
@@ -21,7 +28,7 @@ escort.on('error', function(err)
   console.log(err);
 });
 
-command.connect(config.command, "127.0.0.1", function()
+command.connect(config.command, host, function()
 {
   console.log("command connected");
 
@@ -50,43 +57,51 @@ command.connect(config.command, "127.0.0.1", function()
       {
         console.log("command ready");
 
-        question("convert\n").then(function(answer)
+        question("send\n").then(function(answer)
         {
           if(answer == "size")
           {
-            console.log("ready to convert, sending file size");
+            console.log("ready to send file, sending file size");
             var stats = fs.statSync("./test/original.skp");
             var size = stats["size"];
             return question(size + "\n");
+          }
+          else
+          {
+            return Promise.reject(new Error("incorrect command, expecting 'size'"));
           }
         }).then(function(answer)
         {
           if(answer == "ready")
           {
-            console.log("ready to send");
             fileStream = fs.createReadStream
             (
               "./test/original.skp",
               {defaultEncoding:"binary"}
             );
 
-            return new Promise(function(resolve, reject)
-            {
-              fileStream.on('open',function()
+            return Promise.join
+            (
+              new Promise(function(resolve, reject)
               {
-                console.log("sending file");
-                fileStream.pipe(escort, {end:false});
-                fileStream.on("end", function()
+                fileStream.on('open', function()
                 {
-                  console.log("complete");
-                  fileStream.unpipe(escort);
-                  fileStream.close();
-                  resolve("complete");
+                  console.log("sending file");
+                  fileStream.pipe(escort, {end:false});
+                  fileStream.on("end", function()
+                  {
+                    console.log("complete");
+                    resolve("complete");
+                  });
                 });
-              });
-            }).then(function(answer)
+              }),
+              question("complete\n")
+            ).then(function()
             {
-              return question("complete\n");
+              fileStream.unpipe(escort);
+              fileStream.close();
+
+              return question("export\n");
             });
           }
         }).then(function(answer)
@@ -97,7 +112,8 @@ command.connect(config.command, "127.0.0.1", function()
           }
         }).then(function(answer)
         {
-          console.log("setting up file transfer, size: " + answer);
+          var size = answer;
+          console.log("setting up file transfer, size: " + size);
 
           fileStream = fs.createWriteStream
           (
@@ -106,41 +122,47 @@ command.connect(config.command, "127.0.0.1", function()
           );
           escort.setEncoding("binary");
           escort.pipe(fileStream, {end:false});
-          var size = answer;
-
-          var received = 0;
 
           return Promise.join
           (
-            question("ready\n"),
             new Promise(function(resolve, reject)
             {
+              var received = 0;
+
               escort.on("data", function(data)
               {
                 received += data.length;
 
                 if(received == size)
                 {
-                  escort.unpipe(fileStream);
-                  fileStream.close();
                   completed = true;
                   console.log("complete");
                   resolve("complete");
                 }
               });
-            }).then(function(result){return result;})
-          )
+            }),
+            question("ready\n")
+          ).then(function()
+          {
+            escort.unpipe(fileStream);
+            fileStream.close();
+            console.log("conversion complete");
+            return question("complete\n");
+          });
         }).then(function(answer)
         {
-          console.log("conversion complete");
-          return question("complete\n");
+          if(answer == "continue")
+          {
+            command.write("no\n");
+            process.exit();
+          }
         });
       }
     });
   }
 });
 
-escort.connect(config.escort, "127.0.0.1", function()
+escort.connect(config.escort, host, function()
 {
   console.log("escort connected");
 });

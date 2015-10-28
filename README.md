@@ -56,4 +56,4 @@ Run `node main.js` and the service should kick in!
 
 Just to make sure everything is peachy, run `node test.js` on the same machine  which will do a test transfer and conversion. To test the setup from a remote machine do the same thing but make sure that the hostname in the `config.json` file is reachable from the remote machine.
 
-test teapot model [from Trimble Sketchup 3D Warehouse](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e)
+Teapot model used for testing from [Trimble Sketchup 3D Warehouse](https://3dwarehouse.sketchup.com/model.html?id=452baec912c0eba8f10c4513652c1c5e)

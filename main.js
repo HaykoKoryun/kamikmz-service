@@ -7,18 +7,14 @@ var config = JSON.parse
 (
   fs.readFileSync("config.json")
 );
+
 config["import-path"] = config["import-path"].replace(/\\/ig, "\\\\");
 config["export-path"] = config["export-path"].replace(/\\/ig, "\\\\");
 
 var template = fs.readFileSync("template.rb", "utf8");
 var logo = fs.readFileSync("logo.txt", "utf8");
 
-var MODE_WAITING = 0;
-var MODE_RECEIVE = 2;
-var MODE_RECEIVING = 3;
-var MODE_SENDING = 4;
-
-function convert()
+function exportkmz()
 {
   fs.writeFileSync
   (
@@ -67,13 +63,19 @@ var escort = (function()
   server.on("connection", function(_socket)
   {
     console.log("escort connected");
+    if(connected)
+    {
+      _socket.write("only one escort connection allowed!\n");
+      _socket.end();
+      return;
+    }
+
     connected = true;
 
     socket = _socket;
 
     socket.on("error", function()
     {
-      socket.end();
       reset();
     });
 
@@ -85,6 +87,8 @@ var escort = (function()
 
   function reset()
   {
+    connected = false;
+
     try
     {
       fs.unlinkSync(config["import-path"] + "import.skp");
@@ -101,7 +105,7 @@ var escort = (function()
     return connected;
   };
 
-  _instance.receive = function(size)
+  _instance.receive = function(size, complete)
   {
     console.log("setting up file transfer, size: " + size);
 
@@ -110,31 +114,40 @@ var escort = (function()
       config["import-path"] + "import.skp",
       {defaultEncoding:"binary"}
     );
+
     socket.setEncoding("binary");
     socket.pipe(fileStream, {end:false});
     size = size;
 
     var received = 0;
 
-    return new Promise(function(resolve, reject)
-    {
-      socket.on("data", function(data)
+    return Promise.join
+    (
+      complete,
+      new Promise(function(resolve, reject)
       {
-        received += data.length;
-
-        if(received == size)
+        socket.on("data", function(data)
         {
-          socket.unpipe(fileStream);
-          fileStream.close();
-          completed = true;
-          console.log("complete");
-          resolve("complete");
-        }
-      });
-    }).then(function(result){return result;});
+          received += data.length;
+
+          if(received == size)
+          {
+            completed = true;
+            console.log("complete");
+            resolve("complete");
+          }
+        });
+      })
+    ).then(function()
+    {
+      socket.unpipe(fileStream);
+      fileStream.close();
+
+      return "complete";
+    });
   }
 
-  _instance.send = function()
+  _instance.send = function(complete)
   {
     console.log("setting up file transfer");
 
@@ -144,22 +157,30 @@ var escort = (function()
       {defaultEncoding:"binary"}
     );
 
-    return new Promise(function(resolve, reject)
-    {
-      fileStream.on('open',function()
+    return Promise.join
+    (
+      new Promise(function(resolve, reject)
       {
-        console.log("sending file");
-        fileStream.pipe(socket, {end:false});
-        socket.setEncoding("binary");
-        fileStream.on("end", function()
+        fileStream.on('open',function()
         {
-          fileStream.unpipe(escort);
-          fileStream.close();
-          console.log("complete");
-          resolve("complete");
+          console.log("sending file");
+          fileStream.pipe(socket, {end:false});
+          socket.setEncoding("binary");
+
+          fileStream.on("end", function()
+          {
+            console.log("complete");
+            resolve("complete");
+          });
         });
-      });
-    }).then(function(result){return result;});
+      }),
+      complete
+    ).then(function()
+    {
+      fileStream.unpipe(escort);
+      fileStream.close();
+      return "complete";
+    });
   };
 
   _instance.completed = function()
@@ -177,10 +198,21 @@ var command = (function()
   server.listen(config.command, config.host, function(){});
 
   var connected = false;
+  var socket;
 
-  server.on("connection", function(socket)
+  server.on("connection", function(_socket)
   {
     console.log("command connected");
+    if(connected)
+    {
+      _socket.write("only one command connection allowed!\n");
+      _socket.end();
+      return;
+    }
+
+    socket = _socket;
+
+    connected = true;
 
     var rl = readline.createInterface
     ({
@@ -201,36 +233,43 @@ var command = (function()
     {
       question("ready\n").then(function(answer)
       {
-        if(answer == "convert")
+        if(answer == "send")
         {
-          console.log("ready to convert, requesting file size");
+          console.log("ready to receive file, requesting file size");
           return question("size\n");
         }
         else
         {
-          return Promise.reject(new Error("incorrect command, expecting 'convert'"));
+          return Promise.reject(new Error("incorrect command, expecting 'receive'"));
         }
       }).then(function(answer)
       {
         if(!isNaN(answer))
         {
-          return Promise.join
-          (
-            question("ready\n"),
-            escort.receive(answer)
-          );
+          return escort.receive(answer, question("ready\n"))
+          .then(function(answer)
+          {
+            if(answer == "complete")
+            {
+              console.log("file received");
+              return question("ok\n");
+            }
+          });
         }
         else
         {
           return Promise.reject(new Error("incorrect size, expecting a number"));
         }
-      }).then(function(answers)
+      }).then(function(answer)
       {
-        if(answers[0] == "complete" && answers[1] == "complete")
+        if(answer == "export")
         {
-          console.log("file received");
-          convert();
+          exportkmz();
           return question("exported\n");
+        }
+        else
+        {
+          return Promise.reject(new Error("incorrect command, expecting 'export'"));
         }
       }).then(function(answer)
       {
@@ -242,7 +281,7 @@ var command = (function()
         }
         else
         {
-
+          return Promise.reject(new Error("incorrect command, expecting 'size'"));
         }
       }).then(function(answer)
       {
@@ -250,17 +289,27 @@ var command = (function()
         {
           console.log("ready to send exported file");
 
-          return Promise.join
-          (
-            escort.send(),
-            question("complete\n")
-          );
+          return escort.send().then(function()
+          {
+            return question("complete\n");
+          });
         }
-      }).then(function(answers)
+        else
+        {
+          return Promise.reject(new Error("incorrect command, expecting 'ready'"));
+        }
+      }).then(function(answer)
       {
-        if(answers[0] == "complete" && answers[1] == "complete")
+        if(answer == "complete")
         {
           console.log("conversion complete");
+          return question("continue\n");
+        }
+      }).then(function(answer)
+      {
+        if(answer == "yes")
+        {
+          setTimeout(loop, 100);
         }
       }).error(function(error)
       {
@@ -271,7 +320,6 @@ var command = (function()
 
     socket.on("error", function()
     {
-      socket.end();
       reset();
     });
 
@@ -283,7 +331,14 @@ var command = (function()
 
   function reset()
   {
+    try
+    {
+      connected = false;
+    }
+    catch(e)
+    {
 
+    }
   }
 })();
 
